@@ -19,48 +19,121 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extract Android project
+      - name: Find source ZIP
+        shell: bash
         run: |
-          rm -rf buildsrc
-          mkdir buildsrc
-          unzip -q SmartTube-Assistant-Bridge-source.zip -d buildsrc
+          set -e
 
-          echo "=== Project files ==="
-          find buildsrc -maxdepth 4 -type f | head -100
+          echo "=== Files in repository ==="
+          find . -maxdepth 3 -type f -print
+
+          ZIP="$(find . -maxdepth 3 -type f -iname '*.zip' \
+            ! -path './.git/*' | head -n 1)"
+
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: Không tìm thấy file ZIP nguồn."
+            exit 1
+          fi
+
+          echo "Found ZIP: $ZIP"
+          echo "SOURCE_ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Extract Android project
+        shell: bash
+        run: |
+          set -e
+
+          rm -rf buildsrc
+          mkdir -p buildsrc
+
+          echo "Extracting: $SOURCE_ZIP"
+
+          unzip -q "$SOURCE_ZIP" -d buildsrc
+
+          echo "=== Extracted project ==="
+          find buildsrc -maxdepth 5 -type f -print | head -200
 
       - name: Find Android project
+        shell: bash
         run: |
-          SETTINGS=$(find buildsrc -name settings.gradle -type f -print -quit)
+          set -e
+
+          SETTINGS=$(find buildsrc \
+            -name settings.gradle \
+            -o -name settings.gradle.kts \
+            | head -n 1)
 
           if [ -z "$SETTINGS" ]; then
-            echo "ERROR: Không tìm thấy settings.gradle"
+            echo "ERROR: Không tìm thấy settings.gradle hoặc settings.gradle.kts"
+            echo "=== Nội dung buildsrc ==="
+            find buildsrc -maxdepth 5 -type f -print
             exit 1
           fi
 
           ROOT=$(dirname "$SETTINGS")
 
-          echo "ROOT=$ROOT"
+          echo "Android project root: $ROOT"
           echo "ROOT=$ROOT" >> "$GITHUB_ENV"
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build unsigned APK
+        shell: bash
         run: |
+          set -e
+
           cd "$ROOT"
-          gradle --no-daemon assembleRelease
+
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew --no-daemon assembleRelease
+          else
+            echo "Không có gradlew, sử dụng Gradle hệ thống."
+            gradle --no-daemon assembleRelease
+          fi
 
       - name: Find APK
+        shell: bash
         run: |
-          echo "=== APK files ==="
-          find "$ROOT/app/build/outputs/apk/release" \
-            -type f -name "*.apk" -print
+          set -e
+
+          echo "=== All APK files ==="
+
+          find "$ROOT" \
+            -type f \
+            -name "*.apk" \
+            -print
+
+          APK=$(find "$ROOT" \
+            -type f \
+            -path "*/build/outputs/apk/release/*.apk" \
+            ! -name "*signed*" \
+            ! -name "*aligned*" \
+            | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: Không tìm thấy APK release."
+            exit 1
+          fi
+
+          echo "APK=$APK"
+          echo "APK=$APK" >> "$GITHUB_ENV"
 
       - name: Locate Android Build Tools
+        shell: bash
         run: |
+          set -e
+
           BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" \
-            -mindepth 1 -maxdepth 1 -type d \
-            | sort -V | tail -1)
+            -mindepth 1 \
+            -maxdepth 1 \
+            -type d \
+            | sort -V \
+            | tail -1)
 
           if [ -z "$BUILD_TOOLS" ]; then
-            echo "ERROR: Không tìm thấy Android Build Tools"
+            echo "ERROR: Không tìm thấy Android Build Tools."
             exit 1
           fi
 
@@ -68,24 +141,41 @@ jobs:
           echo "BUILD_TOOLS=$BUILD_TOOLS" >> "$GITHUB_ENV"
 
       - name: Align APK
+        shell: bash
         run: |
-          UNSIGNED="$ROOT/app/build/outputs/apk/release/app-release-unsigned.apk"
-          ALIGNED="$ROOT/app/build/outputs/apk/release/app-release-aligned.apk"
+          set -e
 
-          if [ ! -f "$UNSIGNED" ]; then
-            echo "ERROR: Không tìm thấy APK unsigned"
-            exit 1
-          fi
+          ALIGNED="$RUNNER_TEMP/app-release-aligned.apk"
+
+          echo "Input APK: $APK"
+          echo "Output APK: $ALIGNED"
 
           "$BUILD_TOOLS/zipalign" \
             -P 16 \
             -f \
             4 \
-            "$UNSIGNED" \
+            "$APK" \
+            "$ALIGNED"
+
+          echo "ALIGNED=$ALIGNED" >> "$GITHUB_ENV"
+
+      - name: Check alignment
+        shell: bash
+        run: |
+          set -e
+
+          "$BUILD_TOOLS/zipalign" \
+            -c \
+            -P 16 \
+            -v \
+            4 \
             "$ALIGNED"
 
       - name: Generate signing key
+        shell: bash
         run: |
+          set -e
+
           keytool -genkeypair \
             -v \
             -keystore "$RUNNER_TEMP/smarttube-bridge.keystore" \
@@ -98,9 +188,11 @@ jobs:
             -dname "CN=SmartTube Assistant Bridge"
 
       - name: Sign APK
+        shell: bash
         run: |
-          ALIGNED="$ROOT/app/build/outputs/apk/release/app-release-aligned.apk"
-          SIGNED="$ROOT/app/build/outputs/apk/release/SmartTube-Assistant-Bridge.apk"
+          set -e
+
+          SIGNED="$RUNNER_TEMP/SmartTube-Assistant-Bridge-signed.apk"
 
           "$BUILD_TOOLS/apksigner" sign \
             --ks "$RUNNER_TEMP/smarttube-bridge.keystore" \
@@ -113,18 +205,26 @@ jobs:
             --out "$SIGNED" \
             "$ALIGNED"
 
-      - name: Verify APK
-        run: |
-          SIGNED="$ROOT/app/build/outputs/apk/release/SmartTube-Assistant-Bridge.apk"
+          echo "SIGNED=$SIGNED" >> "$GITHUB_ENV"
 
-          echo "=== Verify signature ==="
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -e
+
+          echo "=== Verify APK signature ==="
 
           "$BUILD_TOOLS/apksigner" verify \
             --verbose \
             --print-certs \
             "$SIGNED"
 
-          echo "=== Verify alignment ==="
+      - name: Verify final APK alignment
+        shell: bash
+        run: |
+          set -e
+
+          echo "=== Verify final APK alignment ==="
 
           "$BUILD_TOOLS/zipalign" \
             -c \
@@ -137,4 +237,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SmartTube-Assistant-Bridge-signed
-          path: ${{ env.ROOT }}/app/build/outputs/apk/release/SmartTube-Assistant-Bridge.apk
+          path: ${{ env.SIGNED }}
+          if-no-files-found: error
