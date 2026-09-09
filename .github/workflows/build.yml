@@ -19,26 +19,122 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extract project
+      - name: Extract Android project
         run: |
+          rm -rf buildsrc
           mkdir buildsrc
           unzip -q SmartTube-Assistant-Bridge-source.zip -d buildsrc
-          echo "Project files:"
-          find buildsrc -maxdepth 3 -type f | head -50
+
+          echo "=== Project files ==="
+          find buildsrc -maxdepth 4 -type f | head -100
 
       - name: Find Android project
         run: |
-          ROOT=$(dirname "$(find buildsrc -name settings.gradle -print -quit)")
-          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
-          echo "Android project: $ROOT"
+          SETTINGS=$(find buildsrc -name settings.gradle -type f -print -quit)
 
-      - name: Build APK
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: Không tìm thấy settings.gradle"
+            exit 1
+          fi
+
+          ROOT=$(dirname "$SETTINGS")
+
+          echo "ROOT=$ROOT"
+          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
+
+      - name: Build unsigned APK
         run: |
           cd "$ROOT"
           gradle --no-daemon assembleRelease
 
-      - name: Upload APK
+      - name: Find APK
+        run: |
+          echo "=== APK files ==="
+          find "$ROOT/app/build/outputs/apk/release" \
+            -type f -name "*.apk" -print
+
+      - name: Locate Android Build Tools
+        run: |
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" \
+            -mindepth 1 -maxdepth 1 -type d \
+            | sort -V | tail -1)
+
+          if [ -z "$BUILD_TOOLS" ]; then
+            echo "ERROR: Không tìm thấy Android Build Tools"
+            exit 1
+          fi
+
+          echo "BUILD_TOOLS=$BUILD_TOOLS"
+          echo "BUILD_TOOLS=$BUILD_TOOLS" >> "$GITHUB_ENV"
+
+      - name: Align APK
+        run: |
+          UNSIGNED="$ROOT/app/build/outputs/apk/release/app-release-unsigned.apk"
+          ALIGNED="$ROOT/app/build/outputs/apk/release/app-release-aligned.apk"
+
+          if [ ! -f "$UNSIGNED" ]; then
+            echo "ERROR: Không tìm thấy APK unsigned"
+            exit 1
+          fi
+
+          "$BUILD_TOOLS/zipalign" \
+            -P 16 \
+            -f \
+            4 \
+            "$UNSIGNED" \
+            "$ALIGNED"
+
+      - name: Generate signing key
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore "$RUNNER_TEMP/smarttube-bridge.keystore" \
+            -storepass changeit \
+            -keypass changeit \
+            -alias smarttube-bridge \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=SmartTube Assistant Bridge"
+
+      - name: Sign APK
+        run: |
+          ALIGNED="$ROOT/app/build/outputs/apk/release/app-release-aligned.apk"
+          SIGNED="$ROOT/app/build/outputs/apk/release/SmartTube-Assistant-Bridge.apk"
+
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$RUNNER_TEMP/smarttube-bridge.keystore" \
+            --ks-key-alias smarttube-bridge \
+            --ks-pass pass:changeit \
+            --key-pass pass:changeit \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$SIGNED" \
+            "$ALIGNED"
+
+      - name: Verify APK
+        run: |
+          SIGNED="$ROOT/app/build/outputs/apk/release/SmartTube-Assistant-Bridge.apk"
+
+          echo "=== Verify signature ==="
+
+          "$BUILD_TOOLS/apksigner" verify \
+            --verbose \
+            --print-certs \
+            "$SIGNED"
+
+          echo "=== Verify alignment ==="
+
+          "$BUILD_TOOLS/zipalign" \
+            -c \
+            -P 16 \
+            -v \
+            4 \
+            "$SIGNED"
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: SmartTube-Assistant-Bridge
-          path: ${{ env.ROOT }}/app/build/outputs/apk/release/*.apk
+          name: SmartTube-Assistant-Bridge-signed
+          path: ${{ env.ROOT }}/app/build/outputs/apk/release/SmartTube-Assistant-Bridge.apk
