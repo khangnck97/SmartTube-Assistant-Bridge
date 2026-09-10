@@ -23,8 +23,7 @@ jobs:
           set -e
           ZIP="$(find . -maxdepth 2 -type f -name 'VietMITV-YouTube-Voice-source*.zip' | head -n 1)"
           if [ -z "$ZIP" ]; then
-            echo "Không tìm thấy file source ZIP."
-            echo "Hãy upload file VietMITV-YouTube-Voice-source-build-from-zip.zip vào thư mục gốc repository."
+            echo "Không tìm thấy source ZIP ở thư mục gốc."
             exit 1
           fi
           echo "SOURCE_ZIP=$ZIP" >> "$GITHUB_ENV"
@@ -37,7 +36,7 @@ jobs:
           mkdir android-source
           unzip -q "$SOURCE_ZIP" -d android-source
           test -f android-source/settings.gradle.kts
-          test -d android-source/app
+          test -f android-source/app/build.gradle.kts
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -52,7 +51,8 @@ jobs:
 
       - name: Build debug APK
         working-directory: android-source
-        run: gradle assembleDebug --no-daemon
+        run: |
+          gradle clean assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
