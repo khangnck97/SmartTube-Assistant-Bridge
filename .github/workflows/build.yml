@@ -12,7 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,17 +20,12 @@ jobs:
         shell: bash
         run: |
           set -e
-          ZIP="$(find . -maxdepth 2 -type f -name 'VietMITV-YouTube-Voice-source*.zip' | head -n 1)"
-          if [ -z "$ZIP" ]; then
-            echo "Không tìm thấy source ZIP ở thư mục gốc."
-            exit 1
-          fi
+          ZIP="$(find . -maxdepth 2 -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB.zip' | head -n 1)"
+          test -n "$ZIP"
           echo "SOURCE_ZIP=$ZIP" >> "$GITHUB_ENV"
 
       - name: Extract source ZIP
-        shell: bash
         run: |
-          set -e
           rm -rf android-source
           mkdir android-source
           unzip -q "$SOURCE_ZIP" -d android-source
@@ -44,19 +38,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle 8.10
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
 
       - name: Build debug APK
         working-directory: android-source
-        run: |
-          gradle clean assembleDebug --no-daemon --stacktrace
+        run: gradle clean assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: YouTube-Voice-debug
+          name: YouTube-Voice-GoogleAssistant-ADB-debug
           path: android-source/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
