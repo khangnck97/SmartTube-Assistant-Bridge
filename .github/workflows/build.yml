@@ -1,5 +1,4 @@
-
-name: Build APK
+name: Build APK from ZIP
 
 on:
   workflow_dispatch:
@@ -12,164 +11,52 @@ permissions:
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Find source ZIP
+        shell: bash
+        run: |
+          set -e
+          ZIP="$(find . -maxdepth 2 -type f -name 'VietMITV-YouTube-Voice-source*.zip' | head -n 1)"
+          if [ -z "$ZIP" ]; then
+            echo "Không tìm thấy file source ZIP."
+            echo "Hãy upload file VietMITV-YouTube-Voice-source-build-from-zip.zip vào thư mục gốc repository."
+            exit 1
+          fi
+          echo "SOURCE_ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Extract source ZIP
+        shell: bash
+        run: |
+          set -e
+          rm -rf android-source
+          mkdir android-source
+          unzip -q "$SOURCE_ZIP" -d android-source
+          test -f android-source/settings.gradle.kts
+          test -d android-source/app
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Set up Gradle 8.10
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: '8.10'
 
-      - name: Check source ZIP
-        run: |
-          set -e
-          test -f SmartTube-Assistant-Bridge-source.zip
-          ls -lh SmartTube-Assistant-Bridge-source.zip
+      - name: Build debug APK
+        working-directory: android-source
+        run: gradle assembleDebug --no-daemon
 
-      - name: Extract Android project
-        run: |
-          set -e
-
-          rm -rf buildsrc
-          mkdir -p buildsrc
-
-          unzip -q SmartTube-Assistant-Bridge-source.zip -d buildsrc
-
-          SETTINGS=$(find buildsrc -type f \
-            \( -name settings.gradle -o -name settings.gradle.kts \) \
-            -print -quit)
-
-          if [ -z "$SETTINGS" ]; then
-            echo "ERROR: Không tìm thấy settings.gradle trong ZIP"
-            find buildsrc -maxdepth 5 -type f -print
-            exit 1
-          fi
-
-          ROOT=$(dirname "$SETTINGS")
-
-          echo "Android project root: $ROOT"
-          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
-
-      - name: Build release APK
-        run: |
-          set -e
-
-          cd "$ROOT"
-
-          gradle --no-daemon --stacktrace assembleRelease
-
-      - name: Find APK
-        run: |
-          set -e
-
-          echo "=== APK files ==="
-
-          find "$ROOT" -type f -name "*.apk" -print
-
-          APK=$(find "$ROOT" \
-            -type f \
-            -path "*/build/outputs/apk/release/*.apk" \
-            -print -quit)
-
-          if [ -z "$APK" ]; then
-            echo "ERROR: Không tìm thấy APK release"
-            exit 1
-          fi
-
-          echo "APK=$APK"
-          echo "APK=$APK" >> "$GITHUB_ENV"
-
-      - name: Locate Android Build Tools
-        run: |
-          set -e
-
-          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" \
-            -mindepth 1 \
-            -maxdepth 1 \
-            -type d \
-            | sort -V \
-            | tail -1)
-
-          if [ -z "$BUILD_TOOLS" ]; then
-            echo "ERROR: Không tìm thấy Android Build Tools"
-            exit 1
-          fi
-
-          echo "BUILD_TOOLS=$BUILD_TOOLS"
-          echo "BUILD_TOOLS=$BUILD_TOOLS" >> "$GITHUB_ENV"
-
-      - name: Align APK
-        run: |
-          set -e
-
-          mkdir -p output
-
-          "$BUILD_TOOLS/zipalign" \
-            -P 16 \
-            -f \
-            4 \
-            "$APK" \
-            output/app-aligned.apk
-
-      - name: Generate signing key
-        run: |
-          set -e
-
-          keytool -genkeypair \
-            -v \
-            -keystore "$RUNNER_TEMP/smarttube-bridge.keystore" \
-            -storepass changeit \
-            -keypass changeit \
-            -alias smarttube-bridge \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=SmartTube Assistant Bridge"
-
-      - name: Sign APK
-        run: |
-          set -e
-
-          "$BUILD_TOOLS/apksigner" sign \
-            --ks "$RUNNER_TEMP/smarttube-bridge.keystore" \
-            --ks-key-alias smarttube-bridge \
-            --ks-pass pass:changeit \
-            --key-pass pass:changeit \
-            --v1-signing-enabled true \
-            --v2-signing-enabled true \
-            --v3-signing-enabled true \
-            --out output/SmartTube-Assistant-Bridge.apk \
-            output/app-aligned.apk
-
-      - name: Verify APK
-        run: |
-          set -e
-
-          "$BUILD_TOOLS/apksigner" verify \
-            --verbose \
-            --print-certs \
-            output/SmartTube-Assistant-Bridge.apk
-
-          "$BUILD_TOOLS/zipalign" \
-            -c \
-            -P 16 \
-            -v \
-            4 \
-            output/SmartTube-Assistant-Bridge.apk
-
-      - name: Upload signed APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SmartTube-Assistant-Bridge
-          path: output/SmartTube-Assistant-Bridge.apk
+          name: YouTube-Voice-debug
+          path: android-source/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
