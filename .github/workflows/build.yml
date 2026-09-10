@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          ZIP="$(find . -maxdepth 2 -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-final.zip' | head -n 1)"
+          ZIP="$(find . -maxdepth 2 -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-keepalive-final.zip' | head -n 1)"
           test -n "$ZIP"
           echo "SOURCE_ZIP=$ZIP" >> "$GITHUB_ENV"
 
@@ -49,6 +49,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: YouTube-Voice-GoogleAssistant-ADB-final-debug
+          name: YouTube-Voice-GoogleAssistant-ADB-keepalive-debug
           path: android-source/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
