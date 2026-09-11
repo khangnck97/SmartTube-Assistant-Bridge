@@ -1,4 +1,4 @@
-name: VietMITV ADB Role Bridge DEBUG 8
+name: Build VietMITV ADB Role Bridge FIX9
 
 on:
   workflow_dispatch:
@@ -14,89 +14,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Setup Gradle 8.10
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-
-      - name: Prepare Gradle project
+      - name: Prepare Gradle source
         shell: bash
         run: |
-          set -euo pipefail
-          echo "=== Files in repository ==="
-          find . -maxdepth 3 -type f -print | sort | head -200
-
-          if [ -f settings.gradle.kts ] || [ -f settings.gradle ]; then
-            echo "Gradle project found at repository root."
-            exit 0
+          set -euxo pipefail
+          if [ ! -f settings.gradle.kts ] && [ ! -f settings.gradle ]; then
+            ZIP=$(find . -maxdepth 4 -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix9-debug.zip' -print -quit)
+            test -n "$ZIP"
+            rm -rf _source
+            mkdir _source
+            unzip -q "$ZIP" -d _source
+            ROOT=$(find _source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit | xargs -r dirname)
+            test -n "$ROOT"
+            cp -a "$ROOT"/. .
           fi
-
-          ZIP="./VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix8-debug.zip"
-          if [ ! -f "$ZIP" ]; then
-            ZIP_FOUND="$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix8-debug.zip' -print -quit)"
-            if [ -n "$ZIP_FOUND" ]; then ZIP="$ZIP_FOUND"; fi
-          fi
-
-          if [ ! -f "$ZIP" ]; then
-            echo "ERROR: Không tìm thấy source Gradle hoặc ZIP source DEBUG 8."
-            echo "Hãy upload file ZIP DEBUG 8 vào repository rồi chạy lại."
-            exit 1
-          fi
-
-          echo "Extracting: $ZIP"
-          rm -rf _source
-          mkdir -p _source
-          unzip -q "$ZIP" -d _source
-
-          ROOT="$(find _source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit | xargs -r dirname)"
-          if [ -z "$ROOT" ]; then
-            echo "ERROR: ZIP không chứa Gradle project hợp lệ."
-            find _source -maxdepth 5 -type f -print | sort | head -300
-            exit 1
-          fi
-
-          echo "Gradle root: $ROOT"
-          shopt -s dotglob
-          cp -a "$ROOT"/. ./
-          rm -rf _source
-
-          test -f settings.gradle.kts || test -f settings.gradle
-          test -f build.gradle.kts || test -f build.gradle
-          echo "=== Gradle root after extraction ==="
-          ls -la
-
+          test -f settings.gradle.kts -o -f settings.gradle
+          test -f app/build.gradle.kts -o -f app/build.gradle
       - name: Build DEBUG APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle clean assembleDebug --no-daemon --stacktrace
-
-      - name: Collect APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          mapfile -t APKS < <(find . -type f -path '*/build/outputs/apk/debug/*.apk' ! -path './dist/*' | sort)
-          if [ "${#APKS[@]}" -eq 0 ]; then
-            echo "ERROR: Không tìm thấy APK sau khi build."
-            find . -type f -name '*.apk' -print || true
-            exit 1
-          fi
-          echo "Found APK:"
-          printf '%s\n' "${APKS[@]}"
-          cp "${APKS[0]}" dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG8.apk
-          ls -lh dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG8.apk
-
+        run: gradle clean assembleDebug --no-daemon --stacktrace
+      - name: Show APK
+        run: find app/build/outputs/apk -type f -name '*.apk' -print
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-ADB-ROLE-BRIDGE-DEBUG8
-          path: dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG8.apk
+          name: VietMITV-ADB-ROLE-BRIDGE-FIX9
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
