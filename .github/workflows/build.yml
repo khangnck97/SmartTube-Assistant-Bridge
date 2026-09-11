@@ -35,8 +35,8 @@ jobs:
           if [ ! -f settings.gradle.kts ] && [ ! -f settings.gradle ]; then
             ZIP=""
 
-            # Prefer the FIX11 archive, then fall back to any VietMITV bridge archive.
-            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-VIETMITV-MECHANISM-FIX14-FINAL.zip' -print -quit || true)
+            # Find the source archive committed to the repository.
+            ZIP=$(find . -type f -name 'VietMITV-FIX14-FINAL.zip' -print -quit || true)
             if [ -z "$ZIP" ]; then
               ZIP=$(find . -type f -iname '*VietMITV*ADB*bridge*.zip' -print -quit || true)
             fi
