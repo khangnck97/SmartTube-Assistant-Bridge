@@ -1,4 +1,4 @@
-name: Build VietMITV ADB Role Bridge FIX10
+name: Build VietMITV ADB Role Bridge FIX11
 
 on:
   workflow_dispatch:
@@ -35,8 +35,8 @@ jobs:
           if [ ! -f settings.gradle.kts ] && [ ! -f settings.gradle ]; then
             ZIP=""
 
-            # Prefer the FIX10 archive, then fall back to any VietMITV bridge archive.
-            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix10-debug.zip' -print -quit || true)
+            # Prefer the FIX11 archive, then fall back to any VietMITV bridge archive.
+            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix11-debug.zip' -print -quit || true)
             if [ -z "$ZIP" ]; then
               ZIP=$(find . -type f -iname '*VietMITV*ADB*bridge*.zip' -print -quit || true)
             fi
@@ -77,6 +77,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-ADB-ROLE-BRIDGE-FIX10
+          name: VietMITV-ADB-ROLE-BRIDGE-FIX11
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
