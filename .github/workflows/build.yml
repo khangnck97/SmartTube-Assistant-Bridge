@@ -1,4 +1,4 @@
-name: Build VietMITV Direct ADB Bridge FIX12
+name: Build VietMITV VietMITV-Mechanism FIX13
 
 on:
   workflow_dispatch:
@@ -21,48 +21,54 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.10
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
 
-      - name: Prepare source
+      - name: Prepare Gradle source
         shell: bash
         run: |
           set -euxo pipefail
 
+          # If the repository already contains the Gradle project, use it directly.
           if [ ! -f settings.gradle.kts ] && [ ! -f settings.gradle ]; then
-            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-DIRECT-ADB-FIX12.zip' -print -quit || true)
-            if [ -z "$ZIP" ]; then
-              ZIP=$(find . -type f -iname '*DIRECT*ADB*FIX12*.zip' -print -quit || true)
-            fi
+            ZIP=""
+
+            # Prefer the FIX11 archive, then fall back to any VietMITV bridge archive.
+            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-VIETMITV-MECHANISM-FIX13.zip' -print -quit || true)
             if [ -z "$ZIP" ]; then
               ZIP=$(find . -type f -iname '*VietMITV*ADB*bridge*.zip' -print -quit || true)
             fi
 
             if [ -z "$ZIP" ]; then
-              echo "ERROR: Không tìm thấy source Gradle hoặc ZIP source."
+              echo 'ERROR: Không tìm thấy source Gradle hoặc ZIP source VietMITV.'
+              echo 'Các file ZIP hiện có trong repository:'
+              find . -type f -name '*.zip' -print || true
               exit 1
             fi
 
+            echo "Using source archive: $ZIP"
             rm -rf _source
             mkdir -p _source
             unzip -q "$ZIP" -d _source
+
             ROOT=$(find _source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit | xargs -r dirname)
-            test -n "$ROOT"
+            if [ -z "$ROOT" ]; then
+              echo 'ERROR: ZIP không chứa settings.gradle(.kts).'
+              find _source -maxdepth 5 -type f | sort
+              exit 1
+            fi
+
+            echo "Gradle project root: $ROOT"
             cp -a "$ROOT"/. .
           fi
 
           test -f settings.gradle.kts -o -f settings.gradle
           test -f app/build.gradle.kts -o -f app/build.gradle
+          echo 'Gradle source OK'
 
-          echo "=== Direct bridge checks ==="
-          grep -q 'BRIDGE_MODE=DIRECT_AM_START' app/src/main/kotlin/com/vietmitv/youtubevoice/SelfAdbWorker.kt
-          grep -q 'am start -a android.intent.action.VIEW' app/src/main/kotlin/com/vietmitv/youtubevoice/SelfAdbWorker.kt
-          ! grep -q 'am startservice -n' app/src/main/kotlin/com/vietmitv/youtubevoice/SelfAdbWorker.kt
-          echo "DIRECT ADB BRIDGE CHECK: PASS"
-
-      - name: Build DEBUG APK
+      - name: Build DEBUG APK FIX13
         run: gradle clean assembleDebug --no-daemon --stacktrace
 
       - name: Show APK
@@ -71,6 +77,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-Direct-ADB-Bridge-FIX12
+          name: VietMITV-ADB-ROLE-BRIDGE-FIX13
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
