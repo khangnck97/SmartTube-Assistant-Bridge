@@ -31,45 +31,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           ZIP="VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix5-debug.zip"
 
-          # Case 1: source was already extracted into the repository root.
-          if [ -f "settings.gradle.kts" ]; then
-            echo "PROJECT_DIR=." >> "$GITHUB_ENV"
-            echo "Source already at repository root."
-            exit 0
-          fi
-
-          # Case 2: the matching ZIP was uploaded to the repository.
-          if [ -f "$ZIP" ]; then
-            rm -rf _vietmitv_source
-            mkdir -p _vietmitv_source
-            unzip -q "$ZIP" -d _vietmitv_source
+          if [ -f "settings.gradle.kts" ] && [ -f "app/build.gradle.kts" ]; then
+            PROJECT_DIR="."
           else
-            # Also accept the same ZIP inside one directory.
             FOUND="$(find . -type f -name "$ZIP" -not -path './.git/*' -print -quit)"
             if [ -z "$FOUND" ]; then
-              echo "KHÔNG TÌM THẤY source hoặc $ZIP"
-              echo "Các file ở repository:"
-              find . -maxdepth 3 -type f -not -path './.git/*' -print | sort | head -200
+              echo "ERROR: Không tìm thấy source Gradle hoặc $ZIP"
+              find . -maxdepth 4 -type f -not -path './.git/*' -print | sort | head -200
               exit 1
             fi
+
             rm -rf _vietmitv_source
             mkdir -p _vietmitv_source
             unzip -q "$FOUND" -d _vietmitv_source
-          fi
 
-          # Locate the actual Gradle project after extraction.
-          PROJECT_DIR="$(find _vietmitv_source -type f -name settings.gradle.kts -not -path '*/.git/*' -printf '%h\n' | head -n 1)"
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ZIP không chứa settings.gradle.kts"
-            find _vietmitv_source -maxdepth 5 -type f -print | sort | head -200
-            exit 1
+            PROJECT_DIR="$(find _vietmitv_source -type f -name settings.gradle.kts -printf '%h\n' | while read -r d; do
+              if [ -f "$d/app/build.gradle.kts" ]; then echo "$d"; break; fi
+            done)"
+
+            if [ -z "$PROJECT_DIR" ]; then
+              echo "ERROR: Không tìm thấy Gradle project có app/build.gradle.kts"
+              find _vietmitv_source -maxdepth 6 -type f -print | sort | head -300
+              exit 1
+            fi
           fi
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Gradle project: $PROJECT_DIR"
+          echo "Using Gradle project: $PROJECT_DIR"
 
       - name: Verify source
         shell: bash
@@ -79,10 +69,7 @@ jobs:
           test -f settings.gradle.kts
           test -f build.gradle.kts
           test -f app/build.gradle.kts
-          echo "=== settings.gradle.kts ==="
-          cat settings.gradle.kts
-          echo "=== app/build.gradle.kts ==="
-          cat app/build.gradle.kts
+          echo "Source OK"
 
       - name: Build DEBUG APK
         shell: bash
@@ -91,14 +78,33 @@ jobs:
           cd "$PROJECT_DIR"
           gradle clean assembleDebug --no-daemon --stacktrace
 
-      - name: Show APK
+      - name: Collect APK
         shell: bash
         run: |
-          find "$PROJECT_DIR/app/build/outputs/apk" -type f -name '*.apk' -print
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+
+          echo "=== APK files generated ==="
+          find "$PROJECT_DIR" -type f -name '*.apk' -print | sort
+
+          APK="$(find "$PROJECT_DIR" -type f -path '*/build/outputs/apk/*/*.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            APK="$(find "$PROJECT_DIR" -type f -name '*.apk' -print -quit)"
+          fi
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: Gradle build succeeded nhưng không tìm thấy APK"
+            find "$PROJECT_DIR" -type f -print | grep -E 'outputs|apk|mapping' | head -200 || true
+            exit 1
+          fi
+
+          cp "$APK" "dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG5.apk"
+          ls -lh dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG5.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: VietMITV-ADB-ROLE-BRIDGE-DEBUG5
-          path: "$PROJECT_DIR/app/build/outputs/apk/debug/*.apk"
+          path: dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG5.apk
           if-no-files-found: error
