@@ -1,10 +1,9 @@
-name: Build APK - VietMITV ADB Bridge
+name: Xây dựng APK - Cầu nối ADB VietMITV (FIX Kotlin)
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 permissions:
   contents: read
@@ -16,31 +15,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find source ZIP
+      - name: Tìm và giải nén source ZIP
+        shell: bash
         run: |
-          ZIP="VietMITV-YouTube-Voice-GoogleAssistant-ADB-vietmitv-adb.zip"
-          test -f "$ZIP" || { echo "Missing $ZIP"; exit 1; }
-          rm -rf src
-          mkdir src
-          unzip -q "$ZIP" -d src
+          set -e
+          ZIP=$(find . -maxdepth 3 -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-vietmitv-adb-fixed.zip' -o -name 'VietMITV-ADB-Bridge-vietmitv-adb-fixed.zip' | head -n 1)
+          if [ -z "$ZIP" ]; then
+            echo 'Không tìm thấy source ZIP fixed.'
+            exit 1
+          fi
+          rm -rf build-src
+          mkdir build-src
+          unzip -q "$ZIP" -d build-src
+          ROOT=$(find build-src -maxdepth 2 -name settings.gradle.kts -print -quit | xargs -r dirname)
+          if [ -z "$ROOT" ]; then echo 'Không tìm thấy project Gradle'; exit 1; fi
+          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
 
-      - name: Set up JDK 17
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
 
-      - name: Build debug APK
-        working-directory: src
+      - name: Build APK
+        working-directory: ${{ env.ROOT }}
         run: gradle clean assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-ADB-vietmitv-adb-debug
-          path: src/app/build/outputs/apk/debug/app-debug.apk
+          name: VietMITV-ADB-vietmitv-adb-FIXED-debug
+          path: ${{ env.ROOT }}/app/build/outputs/apk/debug/*.apk
