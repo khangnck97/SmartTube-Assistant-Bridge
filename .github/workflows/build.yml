@@ -3,8 +3,7 @@ name: VietMITV ADB Role Bridge DEBUG 7
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -27,22 +26,73 @@ jobs:
         with:
           gradle-version: '8.10'
 
+      - name: Prepare Gradle project
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== Files in repository ==="
+          find . -maxdepth 3 -type f -print | sort | head -200
+
+          if [ -f settings.gradle.kts ] || [ -f settings.gradle ]; then
+            echo "Gradle project found at repository root."
+            exit 0
+          fi
+
+          ZIP="./VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix7-debug.zip"
+          if [ ! -f "$ZIP" ]; then
+            ZIP_FOUND="$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix7-debug.zip' -print -quit)"
+            if [ -n "$ZIP_FOUND" ]; then ZIP="$ZIP_FOUND"; fi
+          fi
+
+          if [ ! -f "$ZIP" ]; then
+            echo "ERROR: Không tìm thấy source Gradle hoặc ZIP source DEBUG 7."
+            echo "Hãy upload file ZIP DEBUG 7 vào repository rồi chạy lại."
+            exit 1
+          fi
+
+          echo "Extracting: $ZIP"
+          rm -rf _source
+          mkdir -p _source
+          unzip -q "$ZIP" -d _source
+
+          ROOT="$(find _source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit | xargs -r dirname)"
+          if [ -z "$ROOT" ]; then
+            echo "ERROR: ZIP không chứa Gradle project hợp lệ."
+            find _source -maxdepth 5 -type f -print | sort | head -300
+            exit 1
+          fi
+
+          echo "Gradle root: $ROOT"
+          shopt -s dotglob
+          cp -a "$ROOT"/. ./
+          rm -rf _source
+
+          test -f settings.gradle.kts || test -f settings.gradle
+          test -f build.gradle.kts || test -f build.gradle
+          echo "=== Gradle root after extraction ==="
+          ls -la
+
       - name: Build DEBUG APK
-        run: gradle clean assembleDebug --no-daemon --stacktrace
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle clean assembleDebug --no-daemon --stacktrace
 
       - name: Collect APK
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p dist
-          APK="$(find . -type f -path '*/build/outputs/apk/debug/*.apk' | head -n 1)"
-          if [ -z "$APK" ]; then
-            echo "Không tìm thấy APK sau khi build"
+          mapfile -t APKS < <(find . -type f -path '*/build/outputs/apk/debug/*.apk' ! -path './dist/*' | sort)
+          if [ "${#APKS[@]}" -eq 0 ]; then
+            echo "ERROR: Không tìm thấy APK sau khi build."
             find . -type f -name '*.apk' -print || true
             exit 1
           fi
-          echo "APK=$APK"
-          cp "$APK" dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG7.apk
+          echo "Found APK:"
+          printf '%s\n' "${APKS[@]}"
+          cp "${APKS[0]}" dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG7.apk
+          ls -lh dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG7.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
