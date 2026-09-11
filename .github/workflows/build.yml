@@ -1,4 +1,4 @@
-name: Xây dựng APK - VietMITV ADB Role Bridge DEBUG 4
+name: Build VietMITV ADB Role Bridge DEBUG 5
 
 on:
   workflow_dispatch:
@@ -16,23 +16,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Chuẩn bị source
-        shell: bash
-        run: |
-          set -e
-          rm -rf build-src
-          mkdir -p build-src
-          if [ -f "settings.gradle.kts" ] && [ -d "app/src/main" ]; then
-            cp -a . build-src/
-          else
-            ZIP=$(find . -type f \( -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix4-debug.zip' -o -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix3-debug.zip' \) -print -quit)
-            [ -n "$ZIP" ] || { echo 'Không tìm thấy source ZIP DEBUG 4/3'; exit 1; }
-            unzip -q "$ZIP" -d build-src
-          fi
-          ROOT=$(find build-src -type f -name settings.gradle.kts -print -quit | xargs -r dirname)
-          [ -n "$ROOT" ] && [ -d "$ROOT/app/src/main" ] || { echo 'Android project không hợp lệ'; exit 1; }
-          echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
-
       - name: Setup JDK 17
         uses: actions/setup-java@v5
         with:
@@ -44,13 +27,34 @@ jobs:
         with:
           gradle-version: '8.10'
 
-      - name: Build Debug APK
-        working-directory: ${{ env.PROJECT_ROOT }}
-        run: gradle clean assembleDebug --no-daemon --stacktrace
+      - name: Find Gradle project
+        run: |
+          set -e
+          if [ -f settings.gradle.kts ]; then
+            echo "PROJECT_DIR=." >> "$GITHUB_ENV"
+          else
+            PROJECT_DIR="$(find . -type f -name settings.gradle.kts -not -path './.git/*' -printf '%h\n' | head -n 1)"
+            if [ -z "$PROJECT_DIR" ]; then
+              echo "Không tìm thấy settings.gradle.kts"
+              exit 1
+            fi
+            echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          fi
+          echo "Project: $PROJECT_DIR"
+
+      - name: Build DEBUG APK
+        run: |
+          set -e
+          cd "$PROJECT_DIR"
+          gradle clean assembleDebug --no-daemon --stacktrace
+
+      - name: Show APK
+        run: |
+          find "$PROJECT_DIR/app/build/outputs/apk" -type f -name '*.apk' -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-ADB-Role-Bridge-Debug4
-          path: ${{ env.PROJECT_ROOT }}/app/build/outputs/apk/debug/*.apk
+          name: VietMITV-ADB-ROLE-BRIDGE-DEBUG5
+          path: "$PROJECT_DIR/app/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
