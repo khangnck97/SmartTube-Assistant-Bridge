@@ -1,4 +1,4 @@
-name: Test1
+name: Test2
 
 on:
   workflow_dispatch:
@@ -15,14 +15,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check and extract Test1.zip
+      - name: Check and extract Test2.zip
         run: |
-          test -f Test1.zip
-          rm -rf test1-src
-          mkdir test1-src
-          unzip -q Test1.zip -d test1-src
-          test -d test1-src/app
-          test -f test1-src/settings.gradle || test -f test1-src/settings.gradle.kts
+          test -f Test2.zip
+          rm -rf test2-src
+          mkdir test2-src
+          unzip -q Test2.zip -d test2-src
+          test -d test2-src/app
+          test -f test2-src/settings.gradle || test -f test2-src/settings.gradle.kts
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -45,24 +45,24 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Generate Gradle wrapper
-        working-directory: test1-src
+        working-directory: test2-src
         run: |
           gradle wrapper --gradle-version 8.11.1 --distribution-type bin
           chmod +x gradlew
 
-      - name: Build Test1 APK
-        working-directory: test1-src
+      - name: Build Test2 APK
+        working-directory: test2-src
         run: ./gradlew clean assembleDebug --stacktrace
 
-      - name: Prepare Test1.apk
+      - name: Prepare Test2.apk
         run: |
-          APK=$(find test1-src/app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" | head -1)
+          APK=$(find test2-src/app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" | head -1)
           test -n "$APK"
-          cp "$APK" Test1.apk
+          cp "$APK" Test2.apk
 
-      - name: Upload Test1 APK
+      - name: Upload Test2 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Test1
-          path: Test1.apk
+          name: Test2
+          path: Test2.apk
           if-no-files-found: error
