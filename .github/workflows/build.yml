@@ -1,4 +1,4 @@
-name: Build VietMITV VietMITV-Mechanism FIX13
+name: Build VietMITV VietMITV-Mechanism FIX14
 
 on:
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
             ZIP=""
 
             # Prefer the FIX11 archive, then fall back to any VietMITV bridge archive.
-            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-VIETMITV-MECHANISM-FIX13.zip' -print -quit || true)
+            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-VIETMITV-MECHANISM-FIX14.zip' -print -quit || true)
             if [ -z "$ZIP" ]; then
               ZIP=$(find . -type f -iname '*VietMITV*ADB*bridge*.zip' -print -quit || true)
             fi
@@ -68,7 +68,7 @@ jobs:
           test -f app/build.gradle.kts -o -f app/build.gradle
           echo 'Gradle source OK'
 
-      - name: Build DEBUG APK FIX13
+      - name: Build DEBUG APK FIX14
         run: gradle clean assembleDebug --no-daemon --stacktrace
 
       - name: Show APK
@@ -77,6 +77,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-ADB-ROLE-BRIDGE-FIX13
+          name: VietMITV-ADB-ROLE-BRIDGE-FIX14
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
