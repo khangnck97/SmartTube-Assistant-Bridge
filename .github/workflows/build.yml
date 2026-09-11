@@ -1,54 +1,64 @@
-name: Build VietMITV 15
+name: Build V15
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-
-permissions:
-  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare source
+      - name: Check V15.zip
+        run: |
+          test -f V15.zip || { echo 'Không tìm thấy V15.zip trong repository.'; exit 1; }
+
+      - name: Extract V15.zip
+        run: |
+          rm -rf V15-build
+          mkdir -p V15-build
+          unzip -q V15.zip -d V15-build
+
+      - name: Find Android project
+        id: project
         shell: bash
         run: |
-          set -euxo pipefail
-          if [ ! -f settings.gradle.kts ] && [ ! -f settings.gradle ]; then
-            ZIP="$(find . -type f -name '*.zip' -print -quit)"
-            test -n "$ZIP"
-            rm -rf _source
-            mkdir _source
-            unzip -q "$ZIP" -d _source
-            ROOT="$(find _source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit | xargs -r dirname)"
-            test -n "$ROOT"
-            cp -a "$ROOT"/. .
+          GRADLEW="$(find V15-build -type f -name gradlew -print -quit)"
+          if [ -z "$GRADLEW" ]; then
+            echo 'Không tìm thấy gradlew trong V15.zip.'
+            find V15-build -maxdepth 3 -type f | sort | head -200
+            exit 1
           fi
-          test -f settings.gradle.kts -o -f settings.gradle
-          test -f app/build.gradle.kts -o -f app/build.gradle
+          PROJECT_DIR="$(cd "$(dirname "$GRADLEW")" && pwd)"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Android project: $PROJECT_DIR"
 
-      - name: Setup JDK 17
+      - name: Set executable permission
+        run: chmod +x "${{ steps.project.outputs.project_dir }}/gradlew"
+
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle 8.10
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10'
-
       - name: Build APK
-        run: gradle clean assembleDebug --no-daemon --stacktrace
+        working-directory: ${{ steps.project.outputs.project_dir }}
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK
+      - name: Collect APK
+        shell: bash
+        run: |
+          mkdir -p V15-apk
+          find "${{ steps.project.outputs.project_dir }}" -type f -name '*.apk' -exec cp {} V15-apk/ \;
+          test -n "$(find V15-apk -type f -name '*.apk' -print -quit)" || { echo 'Không tìm thấy APK sau khi build.'; exit 1; }
+          ls -lh V15-apk
+
+      - name: Upload V15 APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-15-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: V15
+          path: V15-apk/*.apk
           if-no-files-found: error
