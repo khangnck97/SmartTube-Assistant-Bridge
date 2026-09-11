@@ -1,9 +1,10 @@
-name: Build VietMITV VietMITV-Mechanism FIX14 FINAL
+name: Build VietMITV FIX14 FINAL
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -11,6 +12,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,49 +28,14 @@ jobs:
         with:
           gradle-version: '8.10'
 
-      - name: Prepare Gradle source
-        shell: bash
+      - name: Check source
         run: |
           set -euxo pipefail
-
-          # If the repository already contains the Gradle project, use it directly.
-          if [ ! -f settings.gradle.kts ] && [ ! -f settings.gradle ]; then
-            ZIP=""
-
-            # Find the source archive committed to the repository.
-            ZIP=$(find . -type f -name 'VietMITV-FIX14-FINAL.zip' -print -quit || true)
-            if [ -z "$ZIP" ]; then
-              ZIP=$(find . -type f -iname '*VietMITV*ADB*bridge*.zip' -print -quit || true)
-            fi
-
-            if [ -z "$ZIP" ]; then
-              echo 'ERROR: Không tìm thấy source Gradle hoặc ZIP source VietMITV.'
-              echo 'Các file ZIP hiện có trong repository:'
-              find . -type f -name '*.zip' -print || true
-              exit 1
-            fi
-
-            echo "Using source archive: $ZIP"
-            rm -rf _source
-            mkdir -p _source
-            unzip -q "$ZIP" -d _source
-
-            ROOT=$(find _source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit | xargs -r dirname)
-            if [ -z "$ROOT" ]; then
-              echo 'ERROR: ZIP không chứa settings.gradle(.kts).'
-              find _source -maxdepth 5 -type f | sort
-              exit 1
-            fi
-
-            echo "Gradle project root: $ROOT"
-            cp -a "$ROOT"/. .
-          fi
-
           test -f settings.gradle.kts -o -f settings.gradle
           test -f app/build.gradle.kts -o -f app/build.gradle
-          echo 'Gradle source OK'
+          echo "Gradle source OK"
 
-      - name: Build DEBUG APK FIX14 FINAL
+      - name: Build APK
         run: gradle clean assembleDebug --no-daemon --stacktrace
 
       - name: Show APK
@@ -77,6 +44,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-ADB-ROLE-BRIDGE-FIX14-FINAL
+          name: VietMITV-FIX14-FINAL-APK
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
