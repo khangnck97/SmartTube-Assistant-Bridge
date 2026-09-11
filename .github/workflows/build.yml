@@ -1,4 +1,4 @@
-name: VB1
+name: Test1
 
 on:
   workflow_dispatch:
@@ -15,14 +15,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract VB1.zip
+      - name: Check and extract Test1.zip
         run: |
-          test -f VB1.zip
-          rm -rf vb1-src
-          mkdir vb1-src
-          unzip -q VB1.zip -d vb1-src
-          test -f vb1-src/settings.gradle || test -f vb1-src/settings.gradle.kts
-          test -d vb1-src/app
+          test -f Test1.zip
+          rm -rf test1-src
+          mkdir test1-src
+          unzip -q Test1.zip -d test1-src
+          test -d test1-src/app
+          test -f test1-src/settings.gradle || test -f test1-src/settings.gradle.kts
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -45,24 +45,24 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Generate Gradle wrapper
-        working-directory: vb1-src
+        working-directory: test1-src
         run: |
           gradle wrapper --gradle-version 8.11.1 --distribution-type bin
           chmod +x gradlew
 
-      - name: Build APK
-        working-directory: vb1-src
+      - name: Build Test1 APK
+        working-directory: test1-src
         run: ./gradlew clean assembleDebug --stacktrace
 
-      - name: Prepare VB1.apk
+      - name: Prepare Test1.apk
         run: |
-          APK=$(find vb1-src/app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" | head -1)
+          APK=$(find test1-src/app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" | head -1)
           test -n "$APK"
-          cp "$APK" VB1.apk
+          cp "$APK" Test1.apk
 
-      - name: Upload VB1 APK
+      - name: Upload Test1 APK
         uses: actions/upload-artifact@v4
         with:
-          name: VB1
-          path: VB1.apk
+          name: Test1
+          path: Test1.apk
           if-no-files-found: error
