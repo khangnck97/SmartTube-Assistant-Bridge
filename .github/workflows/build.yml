@@ -14,35 +14,66 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Setup Gradle 8.10
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
+
       - name: Prepare Gradle source
         shell: bash
         run: |
           set -euxo pipefail
+
+          # If the repository already contains the Gradle project, use it directly.
           if [ ! -f settings.gradle.kts ] && [ ! -f settings.gradle ]; then
-            ZIP=$(find . -maxdepth 4 -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix9-debug.zip' -print -quit)
-            test -n "$ZIP"
+            ZIP=""
+
+            # Prefer the FIX10 archive, then fall back to any VietMITV bridge archive.
+            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix10-debug.zip' -print -quit || true)
+            if [ -z "$ZIP" ]; then
+              ZIP=$(find . -type f -iname '*VietMITV*ADB*bridge*.zip' -print -quit || true)
+            fi
+
+            if [ -z "$ZIP" ]; then
+              echo 'ERROR: Không tìm thấy source Gradle hoặc ZIP source VietMITV.'
+              echo 'Các file ZIP hiện có trong repository:'
+              find . -type f -name '*.zip' -print || true
+              exit 1
+            fi
+
+            echo "Using source archive: $ZIP"
             rm -rf _source
-            mkdir _source
+            mkdir -p _source
             unzip -q "$ZIP" -d _source
+
             ROOT=$(find _source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit | xargs -r dirname)
-            test -n "$ROOT"
+            if [ -z "$ROOT" ]; then
+              echo 'ERROR: ZIP không chứa settings.gradle(.kts).'
+              find _source -maxdepth 5 -type f | sort
+              exit 1
+            fi
+
+            echo "Gradle project root: $ROOT"
             cp -a "$ROOT"/. .
           fi
+
           test -f settings.gradle.kts -o -f settings.gradle
           test -f app/build.gradle.kts -o -f app/build.gradle
+          echo 'Gradle source OK'
+
       - name: Build DEBUG APK
         run: gradle clean assembleDebug --no-daemon --stacktrace
+
       - name: Show APK
         run: find app/build/outputs/apk -type f -name '*.apk' -print
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
