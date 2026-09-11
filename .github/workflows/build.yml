@@ -1,4 +1,4 @@
-name: Xây dựng APK - VietMITV ADB Role Bridge DEBUG 2
+name: Xây dựng APK - VietMITV ADB Role Bridge DEBUG 3
 
 on:
   workflow_dispatch:
@@ -12,7 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,53 +20,36 @@ jobs:
         shell: bash
         run: |
           set -e
-
           rm -rf build-src
           mkdir -p build-src
 
-          # Trường hợp repo đã chứa source trực tiếp
           if [ -f "settings.gradle.kts" ] && [ -d "app/src/main" ]; then
             echo "Phát hiện source Android trực tiếp trong repo."
             cp -a . build-src/
           else
-            # Trường hợp repo chứa ZIP source DEBUG 2
-            ZIP=$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix2-debug.zip' -print -quit)
-
+            ZIP=$(find . -type f \( \
+              -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix3-debug.zip' \
+              -o -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix2-debug.zip' \
+            \) -print -quit)
             if [ -z "$ZIP" ]; then
-              echo "KHÔNG TÌM THẤY SOURCE."
-              echo "Repo phải có source trực tiếp hoặc file:"
-              echo "VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix2-debug.zip"
-              echo
-              echo "Các file hiện có:"
+              echo "KHÔNG TÌM THẤY source ZIP DEBUG."
               find . -maxdepth 4 -type f | sort | head -200
               exit 1
             fi
-
             echo "Dùng source ZIP: $ZIP"
             unzip -q "$ZIP" -d build-src
           fi
 
           ROOT=$(find build-src -type f -name 'settings.gradle.kts' -print -quit | xargs -r dirname)
-
           if [ -z "$ROOT" ] || [ ! -d "$ROOT/app/src/main" ]; then
             echo "Không tìm thấy Android project hợp lệ."
-            find build-src -maxdepth 4 -type f | sort | head -200
             exit 1
           fi
-
           echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
           echo "Project root: $ROOT"
 
-          echo "=== Kiểm tra source ==="
-          test -f "$ROOT/app/src/main/kotlin/com/vietmitv/youtubevoice/SelfAdbService.kt"
-          test -f "$ROOT/app/src/main/kotlin/com/vietmitv/youtubevoice/SelfAdbWorker.kt"
-          test -f "$ROOT/app/src/main/kotlin/com/vietmitv/youtubevoice/SelfAdbBase64.kt"
-          test -f "$ROOT/app/src/main/kotlin/com/vietmitv/youtubevoice/VoiceOverlayService.kt"
-          test -f "$ROOT/app/src/main/kotlin/com/vietmitv/youtubevoice/MainActivity.kt"
-          echo "Đã tìm thấy đầy đủ source Role Bridge DEBUG 2."
-
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -88,13 +70,11 @@ jobs:
         shell: bash
         run: |
           set -e
-          echo "=== APK ==="
           find "${PROJECT_ROOT}/app/build/outputs/apk/debug" -type f -name '*.apk' -print
-          test -n "$(find "${PROJECT_ROOT}/app/build/outputs/apk/debug" -type f -name '*.apk' -print -quit)"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-ADB-Role-Bridge-Debug2
+          name: VietMITV-ADB-Role-Bridge-Debug3
           path: ${{ env.PROJECT_ROOT }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
