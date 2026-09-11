@@ -3,8 +3,7 @@ name: VB1
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
 permissions:
   contents: read
@@ -12,45 +11,38 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Check VB1.zip
-        run: |
-          test -f VB1.zip
-          echo "Found VB1.zip"
-          unzip -l VB1.zip | head -40
 
       - name: Extract VB1.zip
         run: |
+          test -f VB1.zip
           rm -rf vb1-src
           mkdir vb1-src
           unzip -q VB1.zip -d vb1-src
           test -f vb1-src/settings.gradle || test -f vb1-src/settings.gradle.kts
           test -d vb1-src/app
-          echo "VB1 source extracted successfully"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
           cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK packages
+      - name: Install Android SDK
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager             "platform-tools"             "platforms;android-35"             "build-tools;35.0.0"
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.11.1'
+          gradle-version: "8.11.1"
 
       - name: Generate Gradle wrapper
         working-directory: vb1-src
@@ -58,18 +50,17 @@ jobs:
           gradle wrapper --gradle-version 8.11.1 --distribution-type bin
           chmod +x gradlew
 
-      - name: Build VB1 APK
+      - name: Build APK
         working-directory: vb1-src
         run: ./gradlew clean assembleDebug --stacktrace
 
-      - name: Prepare VB1.apk
+      - name: Rename APK
         run: |
-          APK=$(find vb1-src/app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' | head -1)
+          APK=$(find vb1-src/app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" | head -1)
           test -n "$APK"
           cp "$APK" VB1.apk
-          ls -lh VB1.apk
 
-      - name: Upload VB1 APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: VB1
