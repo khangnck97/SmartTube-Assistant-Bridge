@@ -1,4 +1,4 @@
-name: VietMITV ADB Role Bridge DEBUG 7
+name: VietMITV ADB Role Bridge DEBUG 8
 
 on:
   workflow_dispatch:
@@ -38,15 +38,15 @@ jobs:
             exit 0
           fi
 
-          ZIP="./VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix7-debug.zip"
+          ZIP="./VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix8-debug.zip"
           if [ ! -f "$ZIP" ]; then
-            ZIP_FOUND="$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix7-debug.zip' -print -quit)"
+            ZIP_FOUND="$(find . -type f -name 'VietMITV-YouTube-Voice-GoogleAssistant-ADB-role-bridge-fix8-debug.zip' -print -quit)"
             if [ -n "$ZIP_FOUND" ]; then ZIP="$ZIP_FOUND"; fi
           fi
 
           if [ ! -f "$ZIP" ]; then
-            echo "ERROR: Không tìm thấy source Gradle hoặc ZIP source DEBUG 7."
-            echo "Hãy upload file ZIP DEBUG 7 vào repository rồi chạy lại."
+            echo "ERROR: Không tìm thấy source Gradle hoặc ZIP source DEBUG 8."
+            echo "Hãy upload file ZIP DEBUG 8 vào repository rồi chạy lại."
             exit 1
           fi
 
@@ -91,12 +91,12 @@ jobs:
           fi
           echo "Found APK:"
           printf '%s\n' "${APKS[@]}"
-          cp "${APKS[0]}" dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG7.apk
-          ls -lh dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG7.apk
+          cp "${APKS[0]}" dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG8.apk
+          ls -lh dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG8.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VietMITV-ADB-ROLE-BRIDGE-DEBUG7
-          path: dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG7.apk
+          name: VietMITV-ADB-ROLE-BRIDGE-DEBUG8
+          path: dist/VietMITV-ADB-ROLE-BRIDGE-DEBUG8.apk
           if-no-files-found: error
