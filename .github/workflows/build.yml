@@ -28,9 +28,36 @@ jobs:
         with:
           gradle-version: '8.10'
 
-      - name: Check source
+      - name: Prepare source
+        shell: bash
         run: |
           set -euxo pipefail
+
+          if [ -f settings.gradle.kts ] || [ -f settings.gradle ]; then
+            echo "Gradle source is already in repository root."
+          else
+            ZIP=$(find . -maxdepth 2 -type f -name '*.zip' -print -quit || true)
+            if [ -z "$ZIP" ]; then
+              echo "ERROR: Không tìm thấy source Gradle hoặc file ZIP source."
+              find . -maxdepth 3 -type f -print
+              exit 1
+            fi
+
+            echo "Using source archive: $ZIP"
+            rm -rf _source
+            mkdir -p _source
+            unzip -q "$ZIP" -d _source
+
+            ROOT=$(find _source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit | xargs -r dirname)
+            if [ -z "$ROOT" ]; then
+              echo "ERROR: ZIP không chứa settings.gradle(.kts)."
+              find _source -maxdepth 5 -type f -print
+              exit 1
+            fi
+
+            cp -a "$ROOT"/. .
+          fi
+
           test -f settings.gradle.kts -o -f settings.gradle
           test -f app/build.gradle.kts -o -f app/build.gradle
           echo "Gradle source OK"
