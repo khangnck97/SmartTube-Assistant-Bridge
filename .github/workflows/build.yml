@@ -1,12 +1,11 @@
-name: Test2
+name: V15 Build APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
-
-permissions:
-  contents: read
+    paths:
+      - 'V15.zip'
+      - 'V15.yml'
 
 jobs:
   build:
@@ -15,54 +14,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check and extract Test2.zip
-        run: |
-          test -f Test2.zip
-          rm -rf test2-src
-          mkdir test2-src
-          unzip -q Test2.zip -d test2-src
-          test -d test2-src/app
-          test -f test2-src/settings.gradle || test -f test2-src/settings.gradle.kts
+      - name: Check V15.zip
+        run: test -f V15.zip
 
-      - name: Set up JDK 17
+      - name: Extract V15.zip
+        run: |
+          rm -rf V15-build
+          mkdir -p V15-build
+          unzip -q V15.zip -d V15-build
+          echo "Extracted files:"
+          find V15-build -maxdepth 3 -type f | sort | head -100
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-          cache: gradle
+          java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK
-        run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Set up Gradle
+      - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.11.1"
+          gradle-version: '8.9'
 
-      - name: Generate Gradle wrapper
-        working-directory: test2-src
+      - name: Build
+        working-directory: V15-build
         run: |
-          gradle wrapper --gradle-version 8.11.1 --distribution-type bin
-          chmod +x gradlew
+          if [ -x ./gradlew ]; then
+            ./gradlew assembleDebug --no-daemon
+          else
+            gradle assembleDebug --no-daemon
+          fi
 
-      - name: Build Test2 APK
-        working-directory: test2-src
-        run: ./gradlew clean assembleDebug --stacktrace
-
-      - name: Prepare Test2.apk
-        run: |
-          APK=$(find test2-src/app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" | head -1)
-          test -n "$APK"
-          cp "$APK" Test2.apk
-
-      - name: Upload Test2 APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Test2
-          path: Test2.apk
-          if-no-files-found: error
+          name: V15-debug
+          path: V15-build/app/build/outputs/apk/debug/app-debug.apk
